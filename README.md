@@ -1,8 +1,10 @@
-# Herdr Sessions for Omarchy
+# Herdr Session Manager for Omarchy
 
 Interactive session picker, launcher, and manager for [Herdr](https://herdr.dev) AI coding agent sessions.
 
-![Herdr Sessions picker](preview.png)
+![Herdr Session Manager](preview.png)
+
+Requires [herdr](https://herdr.dev) (ships with Omarchy).
 
 ---
 
@@ -23,7 +25,7 @@ cat << 'EOF' >> ~/.config/hypr/bindings.lua
 
 -- Herdr Session Picker
 hl.unbind("SUPER + CTRL + RETURN")
-o.bind("SUPER + CTRL + RETURN", "Herdr Sessions", "omarchy-shell shell toggle io.github.houtvongsak.herdr-sessions")
+o.bind("SUPER + CTRL + RETURN", "Herdr Session Manager", "omarchy-shell shell toggle io.github.houtvongsak.herdr-sessions")
 EOF
 hyprctl reload
 ```
