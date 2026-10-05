@@ -2,6 +2,8 @@
 
 Interactive session picker, launcher, and manager for [Herdr](https://herdr.dev) AI coding agent sessions.
 
+![Herdr Sessions picker](preview.png)
+
 ---
 
 ### Step 1: Install
