@@ -47,8 +47,12 @@ Press **`Super + Ctrl + Enter`**:
 
 ### Removal
 
+Remove the plugin and restore the original `Super + Ctrl + Enter` (opens default herdr):
+
 ```bash
 omarchy plugin remove io.github.houtvongsak.herdr-sessions
+sed -i '/^-- Herdr Session Picker$/,/herdr-sessions")$/d' ~/.config/hypr/bindings.lua
+hyprctl reload
 ```
 
 ### License
