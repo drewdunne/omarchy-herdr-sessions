@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/omarchy/omarchy/main/schemas/plugin.json",
+  "schemaVersion": 1,
+  "id": "io.github.houtvongsak.herdr-sessions",
+  "name": "Herdr Sessions",
+  "version": "1.0.0",
+  "author": "houtvongsak",
+  "license": "MIT",
+  "description": "Interactive session picker, launcher, and manager for Herdr terminal workspace sessions.",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "SessionPicker.qml"
+  }
+}
