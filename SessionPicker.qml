@@ -475,7 +475,12 @@ Item {
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
           if (confirmDialog.opened) {
-            if (confirmDialog.handleKey(event)) event.accepted = true
+            // h, j, k and l move between the buttons, like the arrow keys.
+            var bare = !event.modifiers || event.modifiers === Qt.ShiftModifier
+            var vim = [Qt.Key_H, Qt.Key_J, Qt.Key_K, Qt.Key_L].indexOf(event.key) !== -1
+            if (bare && vim) confirmDialog.selectedIndex = confirmDialog.selectedIndex === 0 ? 1 : 0
+            else if (!confirmDialog.handleKey(event)) return
+            event.accepted = true
             return
           }
 
