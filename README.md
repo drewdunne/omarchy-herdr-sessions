@@ -49,6 +49,22 @@ Press **`Super + Ctrl + Enter`**:
 
 ---
 
+### Remote Machines
+
+SSH machines saved in herdr (herdr 0.9 or newer) show up below your local sessions, marked **remote**, with whether they can be reached right now:
+
+```bash
+herdr machine add you@buildbox
+herdr machine add you@buildbox --remote-session agents   # another session on the same host
+```
+
+- A saved machine points at one session on its host, so each one is a row. Save the host again with `--remote-session <name>` to list another of its sessions.
+- `Enter` opens it in a terminal with `herdr --remote <target> [--session <name>]`. If SSH needs a passphrase or a new host key, it asks there.
+- Typing filters remote rows by label, SSH target or session name.
+- Stop and delete stay local: herdr doesn't manage sessions on saved machines. Disabled machines are left out.
+
+---
+
 ### Removal
 
 Remove the plugin and restore the original `Super + Ctrl + Enter` (opens default herdr):

@@ -16,6 +16,10 @@ Item {
   property int selectedIndex: 0
   property bool cursorActive: false
   property var sessions: []
+  // Enabled SSH machines saved with `herdr machine add`, and the latest
+  // `herdr machine status` result for each, keyed by profile id.
+  property var machines: []
+  property var machineStatus: ({})
 
   property bool creatingNew: false
   property string deleteTargetSession: ""
@@ -79,6 +83,7 @@ Item {
 
   function refreshSessions() {
     if (!listProc.running) listProc.running = true
+    if (!machineListProc.running) machineListProc.running = true
   }
 
   function parseSessions(raw) {
@@ -90,6 +95,50 @@ Item {
       root.sessions = []
     }
     root.rebuildDisplay()
+  }
+
+  // Herdr before 0.9 has no `machine` command and prints nothing on stdout,
+  // which leaves the picker showing local sessions only.
+  function parseMachines(raw) {
+    var rows = []
+    if (raw.trim()) {
+      try {
+        rows = JSON.parse(raw) || []
+      } catch (e) {
+        console.warn("herdr machine parser error:", e, raw)
+      }
+    }
+    root.machines = rows.filter(function(m) { return m.enabled === true })
+    root.rebuildDisplay()
+    // The status check is a fresh SSH round trip per machine, so the list is
+    // drawn first and each row's status fills in when the check returns.
+    if (root.machines.length > 0 && !machineStatusProc.running) machineStatusProc.running = true
+  }
+
+  function parseMachineStatus(raw) {
+    var next = {}
+    try {
+      var rows = JSON.parse(raw) || []
+      for (var i = 0; i < rows.length; i++) next[rows[i].id] = rows[i].status
+    } catch (e) {
+      console.warn("herdr machine status parser error:", e, raw)
+      for (var j = 0; j < root.machines.length; j++) next[root.machines[j].id] = "unknown"
+    }
+    root.machineStatus = next
+    root.rebuildDisplay()
+  }
+
+  function machineStatusText(id) {
+    var status = root.machineStatus[id]
+    if (status === undefined) return "checking…"
+    if (status === "error") return "unreachable"
+    return status
+  }
+
+  function machineMatches(m, search) {
+    return [m.label, m.target, m.session].some(function(value) {
+      return String(value || "").toLowerCase().indexOf(search) !== -1
+    })
   }
 
   function prettyPath(path) {
@@ -106,15 +155,38 @@ Item {
       if (search && s.name.toLowerCase().indexOf(search) === -1) continue
       displayModel.append({
         isNewButton: false,
+        isMachine: false,
         name: s.name,
         running: s.running === true,
         isDefault: s.default === true,
-        sessionDir: root.prettyPath(s.session_dir || "")
+        sessionDir: root.prettyPath(s.session_dir || ""),
+        target: "",
+        remoteSession: "",
+        status: ""
+      })
+    }
+
+    // A saved machine targets one session on its host, so it is one row.
+    for (var j = 0; j < root.machines.length; j++) {
+      var m = root.machines[j]
+      if (search && !root.machineMatches(m, search)) continue
+      var remoteSession = m.session || "default"
+      displayModel.append({
+        isNewButton: false,
+        isMachine: true,
+        name: m.label,
+        running: root.machineStatus[m.id] === "reachable",
+        isDefault: false,
+        sessionDir: m.target + " · " + (remoteSession === "default" ? "default session" : "session " + remoteSession),
+        target: m.target,
+        remoteSession: remoteSession,
+        status: root.machineStatusText(m.id)
       })
     }
 
     if (!search) {
-      displayModel.append({ isNewButton: true, name: "", running: false, isDefault: false, sessionDir: "" })
+      displayModel.append({ isNewButton: true, isMachine: false, name: "", running: false, isDefault: false,
+        sessionDir: "", target: "", remoteSession: "", status: "" })
     }
 
     if (displayModel.count === 0) selectedIndex = 0
@@ -146,7 +218,18 @@ Item {
   function activate(row) {
     if (!row) return
     if (row.isNewButton) root.startCreateNew()
+    else if (row.isMachine) root.launchMachine(row.target, row.remoteSession)
     else root.launchSession(row.name)
+  }
+
+  // Attach the way herdr's own docs give for a saved machine. Running it in a
+  // terminal also lets SSH ask for a passphrase or a new host key when the
+  // status check says "auth required".
+  function launchMachine(target, remoteSession) {
+    root.dismiss()
+    var command = ["omarchy-launch-terminal", "herdr", "--remote", target]
+    if (remoteSession && remoteSession !== "default") command.push("--session", remoteSession)
+    Quickshell.execDetached(command)
   }
 
   function launchSession(name) {
@@ -159,7 +242,8 @@ Item {
   }
 
   function stopSession(row) {
-    if (!row || row.isNewButton || !row.running) return
+    // Herdr does not forward session management to saved machines.
+    if (!row || row.isNewButton || row.isMachine || !row.running) return
     if (row.isDefault) {
       Quickshell.execDetached(["herdr", "server", "stop"])
     } else {
@@ -169,7 +253,7 @@ Item {
   }
 
   function requestDeleteSession(row) {
-    if (!row || row.isNewButton || row.running || row.isDefault) return
+    if (!row || row.isNewButton || row.isMachine || row.running || row.isDefault) return
     confirmDialog.selectedIndex = 1
     root.deleteTargetSession = row.name
   }
@@ -237,6 +321,24 @@ Item {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.parseSessions(text)
+    }
+  }
+
+  Process {
+    id: machineListProc
+    command: ["herdr", "machine", "list", "--json"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.parseMachines(text)
+    }
+  }
+
+  Process {
+    id: machineStatusProc
+    command: ["herdr", "machine", "status", "--json"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.parseMachineStatus(text)
     }
   }
 
@@ -379,6 +481,8 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: root.sessions.length + (root.sessions.length === 1 ? " session" : " sessions")
+              + (root.machines.length === 0 ? ""
+                : " · " + root.machines.length + (root.machines.length === 1 ? " machine" : " machines"))
             color: root.foreground
             opacity: 0.5
             font.family: root.fontFamily
@@ -418,10 +522,14 @@ Item {
               id: row
               required property int index
               required property bool isNewButton
+              required property bool isMachine
               required property string name
               required property bool running
               required property bool isDefault
               required property string sessionDir
+              required property string target
+              required property string remoteSession
+              required property string status
 
               readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
               readonly property color textColor: hasCursor ? root.selectedText : root.foreground
@@ -493,9 +601,9 @@ Item {
                   }
 
                   Text {
-                    visible: row.isDefault
+                    visible: row.isDefault || row.isMachine
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "default"
+                    text: row.isMachine ? "remote" : "default"
                     color: root.foreground
                     opacity: 0.5
                     font.family: root.fontFamily
@@ -530,7 +638,7 @@ Item {
                   visible: !row.hasCursor
                   anchors.right: parent.right
                   anchors.verticalCenter: parent.verticalCenter
-                  text: row.running ? "running" : "stopped"
+                  text: row.isMachine ? row.status : (row.running ? "running" : "stopped")
                   color: row.running ? Color.accent : root.foreground
                   opacity: row.running ? 0.9 : 0.4
                   font.family: root.fontFamily
@@ -548,7 +656,7 @@ Item {
                   spacing: Style.space(2)
 
                   Button {
-                    visible: row.running
+                    visible: row.running && !row.isMachine
                     iconText: ""
                     tooltipText: "Stop (s)"
                     foreground: root.foreground
@@ -556,7 +664,7 @@ Item {
                   }
 
                   Button {
-                    visible: !row.running && !row.isDefault
+                    visible: !row.running && !row.isDefault && !row.isMachine
                     iconText: ""
                     tooltipText: "Delete (d)"
                     foreground: root.foreground
@@ -567,7 +675,7 @@ Item {
                     iconText: ""
                     tooltipText: "Open (Enter)"
                     foreground: root.selectedText
-                    onClicked: root.launchSession(row.name)
+                    onClicked: root.activate(displayModel.get(row.index))
                   }
                 }
               }
