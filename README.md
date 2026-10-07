@@ -49,6 +49,7 @@ Press **`Super + Ctrl + Enter`**. Each machine has a tab, this computer first, n
 | `d` / `Delete` | Delete a stopped session |
 | `a` / `x` | Add a machine / remove this machine's tab |
 | `r` | Refresh |
+| `h` `j` `k` `l` (in a confirm box) | Move between Cancel and Delete / Remove |
 | `Esc` | Close |
 
 ---
